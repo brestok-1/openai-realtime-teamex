@@ -56,8 +56,6 @@ export interface AgentConfig {
     | { name: string; publicDescription: string }[];
 }
 
-export type AllAgentConfigsType = Record<string, AgentConfig[]>;
-
 export interface GuardrailResultType {
   status: "IN_PROGRESS" | "DONE";
   testText?: string; 
