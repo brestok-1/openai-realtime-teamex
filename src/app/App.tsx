@@ -6,6 +6,8 @@ import Image from "next/image";
 
 import Transcript from "./components/Transcript";
 import BottomToolbar from "./components/BottomToolbar";
+import InterviewSetupModal from "./components/InterviewSetupModal";
+import InterviewReportModal from "./components/InterviewReportModal";
 
 import { SessionStatus } from "@/app/types";
 
@@ -15,13 +17,15 @@ import { useRealtimeSession } from "./hooks/useRealtimeSession";
 
 import useAudioDownload from "./hooks/useAudioDownload";
 import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
-import { sessionService, EphemeralSessionData } from "./api";
+import { sessionService, EphemeralSessionData, InterviewReport } from "./api";
 import { buildToolsFromBackend } from "./utils";
 
 function App() { 
 
   const {
     addTranscriptMessage,
+    transcriptItems,
+    clearTranscript,
   } = useTranscript();
   const { logClientEvent, logServerEvent } = useEvent();
 
@@ -67,6 +71,12 @@ function App() {
   );
 
   const [sessionData, setSessionData] = useState<EphemeralSessionData | null>(null);
+  const [showSetupModal, setShowSetupModal] = useState<boolean>(false);
+  const [interviewSetupData, setInterviewSetupData] = useState<{ mood: number; talentId: string; jobId: string } | null>(null);
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
+  const [interviewReport, setInterviewReport] = useState<InterviewReport | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   // Initialize the recording hook.
   const { startRecording, stopRecording, downloadRecording } =
@@ -83,17 +93,12 @@ function App() {
 
   useHandleSessionHistory();
 
-  useEffect(() => {
-    if (sessionStatus === "DISCONNECTED") {
-      connectToRealtime();
-    }
-  }, []);
 
-  const fetchSessionData = async (): Promise<EphemeralSessionData | null> => {
+  const fetchSessionData = async (setupData: { mood: number; talentId: string; jobId: string }): Promise<EphemeralSessionData | null> => {
     try {
-      logClientEvent({ url: "/session" }, "fetch_session_token_request");
+      logClientEvent({ url: "/api/interview/initialize", body: setupData }, "fetch_session_token_request");
       
-      const data = await sessionService.fetchEphemeralSession("68dd64965b23fcdbda25d832");
+      const data = await sessionService.fetchEphemeralSession(setupData);
       
       logServerEvent(data, "fetch_session_token_response");
       
@@ -106,12 +111,12 @@ function App() {
     }
   };
 
-  const connectToRealtime = async () => {
+  const connectToRealtime = async (setupData: { mood: number; talentId: string; jobId: string }) => {
     if (sessionStatus !== "DISCONNECTED") return;
     setSessionStatus("CONNECTING");
 
     try {
-      const data = await fetchSessionData();
+      const data = await fetchSessionData(setupData);
       if (!data) return;
 
       setSessionData(data);
@@ -132,9 +137,45 @@ function App() {
     }
   };
 
-  const disconnectFromRealtime = () => {
+  const disconnectFromRealtime = async () => {
     disconnect();
     setSessionStatus("DISCONNECTED");
+
+    if (!interviewSetupData) {
+      console.warn("No interview setup data available");
+      return;
+    }
+
+    setShowReportModal(true);
+    setIsGeneratingReport(true);
+    setReportError(null);
+    setInterviewReport(null);
+
+    try {
+      const messages = transcriptItems
+        .filter(item => item.type === "MESSAGE" && item.role && item.title && !item.isHidden)
+        .map(item => ({
+          role: item.role === "user" ? 1 : 2,
+          content: item.title || "",
+        }));
+
+      const reportData = await sessionService.generateReport({
+        talentId: interviewSetupData.talentId,
+        jobId: interviewSetupData.jobId,
+        transcription: messages,
+      });
+
+      if (reportData.successful && reportData.data) {
+        setInterviewReport(reportData.data);
+      } else {
+        setReportError(reportData.error?.message || "Failed to generate report");
+      }
+    } catch (error) {
+      console.error("Error generating report:", error);
+      setReportError(error instanceof Error ? error.message : "An unexpected error occurred");
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   const sendSimulatedUserMessage = (text: string) => {
@@ -178,8 +219,35 @@ function App() {
       disconnectFromRealtime();
       setSessionStatus("DISCONNECTED");
     } else {
-      connectToRealtime();
+      setShowSetupModal(true);
     }
+  };
+
+  const handleSetupSubmit = (data: { mood: number; talentId: string; jobId: string }) => {
+    setInterviewSetupData(data);
+    setShowSetupModal(false);
+    connectToRealtime(data);
+  };
+
+  const handleSetupCancel = () => {
+    setShowSetupModal(false);
+  };
+
+  const handleReportClose = () => {
+    setShowReportModal(false);
+    setInterviewReport(null);
+    setReportError(null);
+    clearTranscript();
+    setInterviewSetupData(null);
+  };
+
+  const handleStartNewInterview = () => {
+    setShowReportModal(false);
+    setInterviewReport(null);
+    setReportError(null);
+    clearTranscript();
+    setInterviewSetupData(null);
+    setShowSetupModal(true);
   };
 
 
@@ -238,6 +306,23 @@ function App() {
 
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
+      {showSetupModal && (
+        <InterviewSetupModal
+          onSubmit={handleSetupSubmit}
+          onCancel={handleSetupCancel}
+        />
+      )}
+
+      {showReportModal && (
+        <InterviewReportModal
+          isLoading={isGeneratingReport}
+          report={interviewReport}
+          error={reportError}
+          onStartNew={handleStartNewInterview}
+          onClose={handleReportClose}
+        />
+      )}
+
       <div className="p-5 text-lg font-semibold flex justify-between items-center">
         <div
           className="flex items-center cursor-pointer"

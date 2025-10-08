@@ -19,7 +19,6 @@ export interface BackendTool {
 export interface AudioTranscriptionConfig {
   language: string;
   model: string;
-  prompt: string;
 }
 
 export interface AudioTurnDetectionConfig {
@@ -53,4 +52,29 @@ export interface BackendResponse {
   data: EphemeralSessionData;
   successful: boolean;
   error: string | null;
+}
+
+export interface TranscriptionMessage {
+  role: number;
+  content: string;
+}
+
+export interface InterviewReport {
+  summary: string;
+  excitement: number;
+  rapport: number;
+  notes: string[];
+  rbrGroup: string;
+  englishProficiency: number;
+  communication: number;
+  confidence: number;
+  insights: string[];
+}
+
+export interface ReportResponse {
+  data: InterviewReport;
+  successful: boolean;
+  error: {
+    message: string;
+  } | null;
 }
