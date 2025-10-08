@@ -3,7 +3,7 @@ import { BackendResponse, EphemeralSessionData, ReportResponse, TranscriptionMes
 export class SessionService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://localhost:8000') {
+  constructor(baseUrl: string = 'https://diza.teamex.dev') {
     this.baseUrl = baseUrl;
   }
 
