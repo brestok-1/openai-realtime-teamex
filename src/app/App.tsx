@@ -70,7 +70,6 @@ function App() {
     },
   );
 
-  const [sessionData, setSessionData] = useState<EphemeralSessionData | null>(null);
   const [showSetupModal, setShowSetupModal] = useState<boolean>(false);
   const [interviewSetupData, setInterviewSetupData] = useState<{ mood: number; talentId: string; jobId: string } | null>(null);
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
@@ -118,8 +117,6 @@ function App() {
     try {
       const data = await fetchSessionData(setupData);
       if (!data) return;
-
-      setSessionData(data);
 
       const tools = buildToolsFromBackend(data.tools);
 
