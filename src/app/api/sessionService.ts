@@ -9,7 +9,7 @@ export class SessionService {
 
   async fetchEphemeralSession(body: { mood: number; talentId: string; jobId: string }): Promise<EphemeralSessionData> {
     const url = `${this.baseUrl}/api/interview/initialize`;
-    
+    console.log(url)
     const response = await fetch(url, {
       method: 'POST',
       headers: {
